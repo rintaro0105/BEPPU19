@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>別府・亀川グルメ・ナビ | 湯けむりの街の名店たち</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg-color: #fcfaf7;
+            --text-color: #2c3e50;
+            --primary-color: #1a5276;
+            --secondary-color: #e67e22;
+            --accent-color: #d35400;
+            --light-blue: #ebf5fb;
+            --border-color: #e5e8e8;
+            --card-bg: #ffffff;
+            --sidebar-width: 280px;
+            --sidebar-collapsed-width: 80px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.8;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* サイドバー */
+        aside {
+            width: var(--sidebar-width);
+            background-color: #fff;
+            border-right: 1px solid var(--border-color);
+            position: fixed; top: 0; left: 0; bottom: 0; z-index: 1000;
+            display: flex; flex-direction: column; padding: 30px 20px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+        }
+        aside.collapsed { width: var(--sidebar-collapsed-width); padding: 30px 10px; }
+
+        .sidebar-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 10px; }
+        aside.collapsed .sidebar-header-row { justify-content: center; }
+
+        .logo {
+            font-size: 22px; font-weight: bold; color: var(--primary-color);
+            display: flex; align-items: center; gap: 8px; line-height: 1.3;
+            cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden;
+            transition: opacity 0.3s;
+        }
+        aside.collapsed .logo { opacity: 0; pointer-events: none; width: 0; }
+
+        .sidebar-toggle-btn {
+            background: var(--light-blue); color: var(--primary-color);
+            border: 1px solid rgba(26, 82, 118, 0.2);
+            width: 32px; height: 32px; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 14px; flex-shrink: 0; transition: all 0.3s;
+        }
+        .sidebar-toggle-btn:hover { background: var(--primary-color); color: #fff; }
+
+        .sidebar-search-box { position: relative; margin-bottom: 20px; }
+        .sidebar-search-input {
+            width: 100%; padding: 10px 32px 10px 36px; font-size: 14px;
+            border: 1px solid var(--border-color); border-radius: 20px;
+            background: #f8f9f9; color: var(--text-color); outline: none; transition: all 0.3s;
+        }
+        .sidebar-search-input:focus { background: #fff; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(26, 82, 118, 0.1); }
+        .sidebar-search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px; color: #95a5a6; pointer-events: none; }
+        .search-clear-btn { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #95a5a6; font-size: 14px; cursor: pointer; display: none; }
+
+        aside.collapsed .sidebar-search-box { display: none; }
+
+        .sidebar-nav { flex-grow: 1; }
+        .sidebar-nav ul { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+        .sidebar-nav a, .sidebar-nav button.nav-btn-custom {
+            display: flex; align-items: center; gap: 10px; text-decoration: none;
+            color: var(--text-color); font-weight: 500; font-size: 16px; padding: 12px 15px;
+            border-radius: 8px; background: none; border: none; width: 100%; text-align: left;
+            cursor: pointer; font-family: inherit; transition: all 0.3s; white-space: nowrap; overflow: hidden;
+        }
+        .sidebar-nav a:hover, .sidebar-nav button.nav-btn-custom:hover { background: var(--light-blue); color: var(--primary-color); transform: translateX(5px); }
+        
+        .sidebar-nav a.active-nav, .sidebar-nav button.nav-btn-custom.active-filter { background: var(--primary-color); color: #fff; transform: none; }
+        .sidebar-nav a.active-nav:hover, .sidebar-nav button.nav-btn-custom.active-filter:hover { background: #154360; color: #fff; }
+
+        aside.collapsed .sidebar-nav a, aside.collapsed .sidebar-nav button.nav-btn-custom { justify-content: center; padding: 12px 0; }
+        aside.collapsed .sidebar-nav .nav-text, aside.collapsed .sidebar-nav .fav-count-badge { display: none; }
+
+        .fav-count-badge { margin-left: auto; background: #e74c3c; color: #fff; font-size: 12px; padding: 2px 7px; border-radius: 10px; font-weight: bold; }
+
+        .sidebar-footer { margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .qr-btn-sidebar {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            background: var(--light-blue); color: var(--primary-color); border: 1px solid rgba(26, 82, 118, 0.2);
+            padding: 10px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.3s; width: 100%;
+        }
+        .qr-btn-sidebar:hover { background: var(--primary-color); color: #fff; }
+        aside.collapsed .qr-btn-sidebar .btn-text, aside.collapsed .lang-switcher-wrapper { display: none; }
+
+        .lang-switcher-wrapper { display: flex; flex-direction: column; gap: 10px; }
+        .current-lang-display { font-size: 13px; font-weight: bold; background: #f0f3f4; padding: 6px 12px; border-radius: 20px; color: var(--primary-color); border: 1px solid var(--border-color); text-align: center; }
+        .lang-selector { padding: 8px 12px; font-size: 14px; border: 1px solid var(--border-color); border-radius: 6px; background: #fff; color: var(--text-color); cursor: pointer; outline: none; width: 100%; }
+
+        .mobile-header { display: none; }
+
+        /* メインエリア */
+        .main-wrapper {
+            flex-grow: 1; margin-left: var(--sidebar-width); display: flex; flex-direction: column;
+            min-height: 100vh; width: calc(100% - var(--sidebar-width)); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        body.sidebar-is-collapsed .main-wrapper { margin-left: var(--sidebar-collapsed-width); width: calc(100% - var(--sidebar-collapsed-width)); }
+
+        .hero {
+            height: 45vh; min-height: 350px; background: linear-gradient(135deg, #1a5276, #2980b9);
+            display: flex; align-items: center; justify-content: center; text-align: center; color: #fff; padding: 0 40px;
+        }
+        .hero-content { max-width: 800px; animation: fadeIn 1.5s ease; }
+        .hero h1 { font-size: 38px; font-weight: 700; margin-bottom: 20px; letter-spacing: 2px; line-height: 1.4; }
+        .hero p { font-size: 16px; margin-bottom: 25px; opacity: 0.9; }
+
+        .btn {
+            display: inline-block; background: var(--secondary-color); color: white; padding: 12px 30px;
+            border-radius: 50px; text-decoration: none; font-weight: bold; transition: all 0.3s; box-shadow: 0 4px 15px rgba(230, 126, 34, 0.3);
+        }
+        .btn:hover { background: var(--accent-color); transform: translateY(-2px); }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 60px 40px; }
+        .section-title { text-align: center; margin-bottom: 30px; position: relative; padding-bottom: 15px; }
+        .section-title h2 { font-size: 28px; color: var(--primary-color); font-weight: 700; }
+        .section-title::after { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 60px; height: 3px; background: var(--secondary-color); }
+
+        /* フィルター */
+        .filter-container {
+            background: #fff; border-radius: 12px; padding: 20px 25px; margin-bottom: 35px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid var(--border-color);
+            display: flex; flex-wrap: wrap; gap: 15px; align-items: center; justify-content: space-between;
+        }
+        .filter-group-wrapper { display: flex; flex-wrap: wrap; gap: 15px; align-items: center; flex-grow: 1; }
+        .filter-group { display: flex; align-items: center; gap: 8px; }
+        .filter-group label { font-size: 13px; font-weight: bold; color: var(--primary-color); white-space: nowrap; }
+        .filter-select { padding: 8px 12px; font-size: 13px; border: 1px solid var(--border-color); border-radius: 6px; background: #f8f9f9; color: var(--text-color); outline: none; cursor: pointer; }
+        .filter-reset-btn { background: #f2f4f4; color: #7f8c8d; border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; transition: all 0.3s; }
+        .filter-reset-btn:hover { background: #e5e8e8; color: var(--text-color); }
+
+        .gourmet-bg { background: var(--light-blue); padding: 20px 0 60px; }
+        .gourmet-list { display: flex; flex-direction: column; gap: 30px; }
+        .gourmet-item { background: var(--card-bg); border-radius: 12px; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.04); border: 1px solid var(--border-color); position: relative; transition: all 0.3s ease; }
+        .gourmet-item.hidden-by-filter { display: none !important; }
+
+        .gourmet-text { padding: 35px; position: relative; display: flex; flex-direction: column; }
+        .fav-btn {
+            position: absolute; top: 25px; right: 25px; background: #fdf2e9; border: 1px solid #fad7a0; color: #d35400;
+            width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 20px; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.05); z-index: 10;
+        }
+        .fav-btn:hover { transform: scale(1.1); background: #fad7a0; }
+        .fav-btn.favorited { background: #e74c3c; border-color: #c0392b; color: #fff; }
+
+        .restaurant-tag { display: inline-block; background: #f1c40f; color: #2c3e50; font-size: 12px; font-weight: bold; padding: 3px 10px; border-radius: 4px; margin-bottom: 12px; align-self: flex-start; }
+        .gourmet-text h3 { font-size: 24px; color: var(--primary-color); margin-bottom: 5px; padding-right: 45px; }
+        .gourmet-menu-name { font-size: 15px; font-weight: bold; color: var(--accent-color); margin-bottom: 15px; }
+
+        /* 詳細アコーディオン */
+        .details-toggle-btn {
+            background: var(--light-blue); color: var(--primary-color); border: 1px solid rgba(26, 82, 118, 0.2);
+            padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; margin-top: 15px;
+            align-self: flex-start; display: flex; align-items: center; gap: 6px; transition: all 0.3s ease;
+        }
+        .details-toggle-btn:hover { background: var(--primary-color); color: #fff; }
+        .details-toggle-btn .toggle-icon { font-size: 11px; transition: transform 0.3s ease; }
+        .details-toggle-btn.expanded .toggle-icon { transform: rotate(180deg); }
+
+        .gourmet-details { max-height: 0; overflow: hidden; opacity: 0; transition: max-height 0.4s ease, opacity 0.3s ease, margin-top 0.3s ease; margin-top: 0; }
+        .gourmet-details.expanded { max-height: 500px; opacity: 1; margin-top: 15px; }
+        .gourmet-meta { padding-top: 15px; border-top: 1px dashed var(--border-color); font-size: 13px; color: #7f8c8d; margin-bottom: 20px; }
+        .gourmet-meta > span { display: block; margin-bottom: 5px; }
+
+        .btn-group { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 5px; }
+        .url-btn {
+            display: inline-block; background: var(--primary-color); color: white; padding: 10px 22px;
+            border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: bold; text-align: center; transition: background 0.3s;
+        }
+        .url-btn:hover { background: #154360; }
+        .map-btn { background: #27ae60; }
+        .map-btn:hover { background: #1e8449; }
+
+        .empty-fav-message { display: none; text-align: center; padding: 40px 20px; color: #7f8c8d; font-size: 16px; background: #fff; border-radius: 12px; border: 1px dashed var(--border-color); }
+
+        footer { background: #2c3e50; color: #a6acaf; padding: 40px 20px; text-align: center; margin-top: auto; }
+        .footer-links { margin-bottom: 25px; }
+        .footer-links a { color: #a6acaf; text-decoration: none; margin: 0 15px; transition: color 0.3s; }
+        .footer-links a:hover { color: #fff; }
+
+        .overlay { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 1200; }
+        .overlay.active { display: block; }
+
+        .qr-modal {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #fff; padding: 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            z-index: 1300; text-align: center; max-width: 340px; width: 90%; animation: modalFadeIn 0.3s ease;
+        }
+        .qr-modal.active { display: block; }
+        .qr-modal h4 { color: var(--primary-color); margin-bottom: 8px; font-size: 18px; }
+        .qr-modal p { font-size: 13px; color: #7f8c8d; margin-bottom: 20px; }
+        #qrcode { display: flex; justify-content: center; align-items: center; margin: 0 auto 20px; background: white; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; width: 220px; height: 220px; }
+        .close-qr-btn { background: #7f8c8d; color: white; border: none; padding: 8px 20px; border-radius: 20px; font-size: 14px; cursor: pointer; }
+
+        /* モバイル・縦画面表示時のスタイル修正 */
+        @media (max-width: 1024px) {
+            body { flex-direction: column; }
+            body.sidebar-is-collapsed .main-wrapper { margin-left: 0; width: 100%; }
+            .mobile-header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px 20px; position: fixed; top: 0; left: 0; right: 0; z-index: 1100; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+            .menu-toggle { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--primary-color); }
+            
+            /* サイドバーが開いた際、最前面に表示して操作可能にする設定 */
+            aside {
+                transform: translateX(-100%);
+                top: 0;
+                height: 100vh;
+                width: 280px !important;
+                max-width: 80%;
+                z-index: 2000 !important; /* オーバーレイやメイン画面より最前面へ */
+                box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+            }
+            aside.active { transform: translateX(0); }
+            aside .sidebar-toggle-btn { display: none; }
+            aside .logo { opacity: 1 !important; width: auto !important; pointer-events: auto !important; }
+            aside .sidebar-search-box, aside .sidebar-nav .nav-text, aside .sidebar-nav .fav-count-badge, aside .qr-btn-sidebar .btn-text, aside .lang-switcher-wrapper { display: flex !important; }
+            aside .sidebar-search-box { display: block !important; }
+            
+            /* サイドバーが開いているときの背景オーバーレイ */
+            .overlay { z-index: 1500; }
+
+            .main-wrapper { margin-left: 0; width: 100%; padding-top: 60px; }
+            .hero h1 { font-size: 26px; } .hero p { font-size: 14px; }
+            .btn-group, .filter-container, .filter-group-wrapper { flex-direction: column; align-items: stretch; }
+            .filter-group { justify-content: space-between; }
+        }
+
+        @keyframes modalFadeIn { from { opacity: 0; transform: translate(-50%, -45%); } to { opacity: 1; transform: translate(-50%, -50%); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <!-- モバイル用ヘッダー -->
+    <div class="mobile-header">
+        <div id="logoToggleMobile" class="logo">♨ <span data-i18n="nav_title">別府・亀川グルメ・ナビ</span></div>
+        <button class="menu-toggle" id="menuToggle">☰</button>
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+
+    <!-- QRコードモーダル -->
+    <div class="qr-modal" id="qrModal">
+        <h4><span data-i18n="qr_title">QRコードでシェア</span></h4>
+        <p><span data-i18n="qr_desc">スマホのカメラで読み取ってアクセス！</span></p>
+        <div id="qrcode"></div>
+        <button class="close-qr-btn" id="closeQrBtn"><span data-i18n="close">閉じる</span></button>
+    </div>
+
+    <!-- Authモーダル -->
+    <div class="qr-modal" id="authModal" style="max-width: 400px;">
+        <h4 id="authModalTitle">ログイン / アカウント登録</h4>
+        <p style="font-size: 12px; margin-bottom: 15px; color: #7f8c8d;">メールアドレスとパスワードを入力してください</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 10px; text-align: left; margin-bottom: 15px;">
+            <input type="email" id="authEmail" placeholder="メールアドレス" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px;">
+            <input type="password" id="authPassword" placeholder="パスワード（6文字以上）" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px;">
+        </div>
+        
+        <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 15px;">
+            <button id="loginBtn" class="url-btn" style="border: none; cursor: pointer; flex: 1;">ログイン</button>
+            <button id="signupBtn" class="url-btn map-btn" style="border: none; cursor: pointer; flex: 1;">新規登録</button>
+        </div>
+        
+        <div id="authMessage" style="font-size: 12px; color: #e74c3c; margin-bottom: 10px;"></div>
+        <button class="close-qr-btn" id="closeAuthBtn">閉じる</button>
+    </div>
+
+    <!-- サイドバー -->
+    <aside id="sidebar">
+        <div class="sidebar-header-row">
+            <div id="logoToggle" class="logo" title="トップへ戻る">♨ <span data-i18n="sidebar_logo">別府・亀川<br>グルメ・ナビ</span></div>
+            <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="開閉">◀</button>
+        </div>
+
+        <div class="sidebar-search-box">
+            <span class="sidebar-search-icon">🔍</span>
+            <input type="text" id="searchInput" class="sidebar-search-input" placeholder="店舗名や料理を入力...">
+            <button id="searchClearBtn" class="search-clear-btn">✖</button>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <ul>
+                <li><a href="#top" class="nav-link active-nav" data-target="top"><span style="font-size:18px;">🏠</span> <span class="nav-text" data-i18n="nav_home">ホーム</span></a></li>
+                <li><a href="#gourmet" class="nav-link" data-target="gourmet"><span style="font-size:18px;">🍽️</span> <span class="nav-text" data-i18n="nav_gourmet">名店グルメ</span></a></li>
+                <li>
+                    <button class="nav-btn-custom" id="favFilterBtn">
+                        <span style="font-size:18px;">❤️</span> 
+                        <span class="nav-text" data-i18n="nav_fav">お気に入り一覧</span>
+                        <span class="fav-count-badge" id="favCountBadge">0</span>
+                    </button>
+                </li>
+                <!-- サイドバーの ul 内に追加 -->
+                <li id="authNavContainer">
+                    <button class="nav-btn-custom" id="openAuthBtn">
+                        <span style="font-size:18px;">👤</span> 
+                        <span class="nav-text" id="authBtnText">ログイン / 登録</span>
+                    </button>
+                </li>
+            </ul>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button class="qr-btn-sidebar" id="openQrBtn">
+                <span>📷</span> <span class="btn-text" data-i18n="show_qr">QRコードを表示</span>
+            </button>
+            <div class="lang-switcher-wrapper">
+                <div class="current-lang-display" id="currentLangBadge">🇯🇵 日本語</div>
+                <select class="lang-selector" id="langSelect" onchange="changeLanguage(this.value)">
+                    <option value="ja">日本語</option>
+                    <option value="en">English</option>
+                    <option value="ko">한국어</option>
+                    <option value="zh">简体中文</option>
+                </select>
+            </div>
+        </div>
+    </aside>
+
+    <!-- メイン -->
+    <div class="main-wrapper">
+        <!-- ホーム：ヒーローセクション -->
+        <section id="top" class="hero">
+            <div class="hero-content">
+                <h1><span data-i18n="hero_title">別府・亀川の「美味しい」に出会う旅。</span></h1>
+                <p><span data-i18n="hero_desc">温泉水を使った地獄そば、絶景パノラマカフェ、血の池地獄の郷土料理から、器も楽しめる和モダンな空間まで。半径5キロ圏内の至高のローカル店をご紹介。</span></p>
+                <a href="#search-area" class="btn"><span data-i18n="hero_btn">条件を選んで検索</span></a>
+            </div>
+        </section>
+
+        <!-- ホーム：絞り込み検索のみ -->
+        <section id="search-area" class="gourmet-bg" style="padding-top: 40px; padding-bottom: 30px;">
+            <div class="container" style="padding-top: 0; padding-bottom: 0;">
+                <div class="section-title">
+                    <h2><span data-i18n="search_section_title">絞り込み検索</span></h2>
+                </div>
+                <div class="filter-container">
+                    <div class="filter-group-wrapper">
+                        <div class="filter-group">
+                            <label for="categoryFilter">📂 <span data-i18n="lbl_category">カテゴリー</span>:</label>
+                            <select id="categoryFilter" class="filter-select">
+                                <option value="all">すべて表示</option>
+                                <option value="japanese">和食・海鮮・いけす</option>
+                                <option value="ramen">ラーメン・蕎麦</option>
+                                <option value="cafe">カフェ・スイーツ</option>
+                                <option value="fastfood">ファーストフード・軽食</option>
+                                <option value="yakiniku">焼肉・肉料理</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="priceFilter">💰 <span data-i18n="lbl_price">価格帯</span>:</label>
+                            <select id="priceFilter" class="filter-select">
+                                <option value="all">すべて表示</option>
+                                <option value="low">〜1,000円（手軽に楽しむ）</option>
+                                <option value="mid">1,000円〜2,000円（標準）</option>
+                                <option value="high">2,000円〜（贅沢ランチ・ディナー）</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="timeFilter">⏰ <span data-i18n="lbl_time">営業時間</span>:</label>
+                            <select id="timeFilter" class="filter-select">
+                                <option value="all">すべて表示</option>
+                                <option value="breakfast">朝食</option>
+                                <option value="lunch">ランチ</option>
+                                <option value="dinner">ディナー</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="paymentFilter">💳 <span data-i18n="lbl_payment">支払方法</span>:</label>
+                            <select id="paymentFilter" class="filter-select">
+                                <option value="all">すべて表示</option>
+                                <option value="cash">現金のみ/現金可</option>
+                                <option value="paypay">PayPay（QR決済可）</option>
+                                <option value="card">クレジットカード可</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="featureFilter">🌟 <span data-i18n="lbl_feature">こだわり条件</span>:</label>
+                            <select id="featureFilter" class="filter-select">
+                                <option value="all">指定なし</option>
+                                <option value="private_room">個室あり</option>
+                                <option value="parking">駐車場あり</option>
+                                <option value="takeout">テイクアウト可</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="resetFiltersBtn" class="filter-reset-btn">🔄 <span data-i18n="btn_reset">条件リセット</span></button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 名店グルメ：店の一覧のみ -->
+        <section id="gourmet" class="gourmet-bg" style="padding-top: 20px;">
+            <div class="container" style="padding-top: 0;">
+                <div class="section-title">
+                    <h2><span data-i18n="section_title">名店グルメ</span></h2>
+                </div>
+
+                <div class="empty-fav-message" id="emptyFavMessage"><span data-i18n="msg_empty">該当するお店が見つかりませんでした。<br>検索条件やお気に入り一覧を確認してください。</span></div>
+
+                <div class="gourmet-list">
+
+                    <!-- 店舗1 -->
+                    <div class="gourmet-item" data-id="kuroki" data-category="japanese,ramen" data-price="mid" data-hours="lunch,dinner" data-payment="cash" data-features="private_room,parking,takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">亀川駅徒歩5分・いけす料理と名物蕎麦</span>
+                            <h3>お食事処 黒木（くろき）</h3>
+                            <p class="gourmet-menu-name">おすすめ：名物地獄そば、とり天、新鮮な海鮮料理</p>
+                            <p>亀川駅西口からほど近い、地元で知らない人はいない割烹・いけす料理の名店。温泉水を使用した『地獄そば』はここでしか食べられない逸品です。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市亀川浜田町34-1</span>
+                                    <span>🚶 アクセス：JR日豊本線「亀川駅」西口から徒歩約5分</span>
+                                    <span>⏰ 営業時間：11:30〜14:00 / 17:30〜22:00（定休日：月曜・第3日曜）</span>
+                                    <span>💳 支払方法：現金のみ</span>
+                                    <span>🚗 設備：個室あり・駐車場あり・テイクアウト対応</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://www.instagram.com/osyokujidokorokuroki/" target="_blank" class="url-btn">公式Instagramをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=お食事処+黒木+大分県別府市亀川浜田町34-1" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 店舗2 -->
+                    <div class="gourmet-item" data-id="minato-market" data-category="japanese" data-price="high" data-hours="lunch,dinner" data-payment="cash,paypay,card" data-features="parking,takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">亀川駅徒歩4分・海の幸を五感で楽しむ体験型市場</span>
+                            <h3>別府みなと市場</h3>
+                            <p class="gourmet-menu-name">おすすめ：海鮮炭火焼き、勝手丼、地鶏炭火焼セット</p>
+                            <p>館内に大型いけすを4つ備えた大人気の体験型海鮮市場。別府湾の景色を眺めながら贅沢な食体験を満喫できます。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市亀川浜田町991-183</span>
+                                    <span>🚶 アクセス：JR日豊本線「亀川駅」から徒歩約4分</span>
+                                    <span>⏰ 営業時間：10:30〜15:30（土日祝は17:00〜20:30も営業）</span>
+                                    <span>💳 支払方法：各種クレジットカード・QRコード決済対応</span>
+                                    <span>🚗 設備：駐車場あり・一部テイクアウト可</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://www.usuki-ichiba.com/" target="_blank" class="url-btn">公式サイトをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=別府みなと市場" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 店舗3 -->
+                    <div class="gourmet-item" data-id="gokurakutei" data-category="japanese,fastfood" data-price="mid" data-hours="breakfast,lunch" data-payment="cash,paypay,card" data-features="parking,takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">血の池地獄隣接・九州産厳選素材の郷土料理</span>
+                            <h3>お食事処 極楽亭</h3>
+                            <p class="gourmet-menu-name">おすすめ：血の池バーガーセット、とり天定食、だんご汁</p>
+                            <p>名勝「血の池地獄」の敷地内にあり、九州産の無農薬・厳選食材やボリューム満点のオリジナルグルメが揃っています。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市野田780（血の池地獄敷地内）</span>
+                                    <span>🚗 アクセス：JR「亀川駅」から車で約6分</span>
+                                    <span>⏰ 営業時間：8:00〜17:00</span>
+                                    <span>💳 支払方法：各種決済対応</span>
+                                    <span>🚗 設備：駐車場あり（血の池地獄駐車場）・テイクアウト可</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://chinoike.com/eat/" target="_blank" class="url-btn">公式サイトをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=お食事処+極楽亭+大分県別府市野田780" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 店舗4 -->
+                    <div class="gourmet-item" data-id="atelier" data-category="cafe" data-price="mid" data-hours="lunch" data-payment="cash,paypay,card" data-features="parking,takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">十文字原近く・絶景パノラマカフェ</span>
+                            <h3>海の見える丘 アトリエ</h3>
+                            <p class="gourmet-menu-name">おすすめ：地獄蒸しシフォンケーキ、手作りピザ、ハーブティー</p>
+                            <p>別府の街並みと別府湾を見下ろす抜群のロケーション。温泉の湯けむりを利用した「地獄蒸しシフォンケーキ」が絶品です。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市大字鶴見（十文字原方面）</span>
+                                    <span>🚗 アクセス：JR「亀川駅」から車で約15分</span>
+                                    <span>⏰ 営業時間：11:00〜夕暮れまで（定休日：木曜・金曜）</span>
+                                    <span>💳 支払方法：各種カード・QR決済可</span>
+                                    <span>🚗 設備：駐車場あり・テイクアウト可</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://tabelog.com/oita/A4402/A440202/44005828/" target="_blank" class="url-btn">公式サイトをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=海の見える丘+アトリエ+大分県別府市" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 店舗5 -->
+                    <div class="gourmet-item" data-id="souen-komachi" data-category="cafe" data-price="mid" data-hours="breakfast,lunch,dinner" data-payment="cash,paypay" data-features="private_room,parking,takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">別府市荘園・朝から夜まで楽しめるカフェダイニング</span>
+                            <h3>ダイニングカフェ 荘園小町</h3>
+                            <p class="gourmet-menu-name">おすすめ：小町ランチプレート、手作りオムライス、特製ケーキ</p>
+                            <p>モーニングからランチ、パティシエの手作りスイーツまで楽しめる人気のおしゃれカフェダイニング。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市荘園1-3</span>
+                                    <span>🚗 アクセス：JR「別府駅」西口から車で約7分</span>
+                                    <span>⏰ 営業時間：11:00〜22:30</span>
+                                    <span>💳 支払方法：現金・各種QRコード決済</span>
+                                    <span>🚗 設備：個室あり・駐車場あり・テイクアウト可</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://united-dining.net/souenkomachi/" target="_blank" class="url-btn">公式サイトをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=ダイニングカフェ+荘園小町+大分県別府市荘園1-3" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 店舗6 -->
+                    <div class="gourmet-item" data-id="shiosaiya" data-category="japanese" data-price="mid" data-hours="lunch,dinner" data-payment="cash,card" data-features="parking">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">別府市鮮魚直営・海の恵みを堪能</span>
+                            <h3>JFおおいた 別府潮彩屋</h3>
+                            <p class="gourmet-menu-name">おすすめ：りゅうきゅう丼、海鮮丼、新鮮な地魚の刺身定食</p>
+                            <p>大分県漁業協同組合直営。別府湾のピチピチの海の幸をリーズナブルな価格で豪快に味わえます。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市亀川浜田町991-183</span>
+                                    <span>🚶 アクセス：JR「亀川駅」から徒歩約4分</span>
+                                    <span>⏰ 営業時間：11:00〜14:30 / 17:00〜21:00（定休日：水曜）</span>
+                                    <span>💳 支払方法：現金・各種クレジットカード対応</span>
+                                    <span>🚗 設備：駐車場あり</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="http://www.kaisen-isoiso.com/menu/siosaiya/" target="_blank" class="url-btn">公式サイトをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=JFおおいた+別府潮彩屋" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 店舗7 -->
+                    <div class="gourmet-item" data-id="jumangoku" data-category="ramen" data-price="low" data-hours="lunch,dinner" data-payment="cash" data-features="takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">亀川駅徒歩3分・地元で愛されるソウルフード</span>
+                            <h3>十五万石ラーメン 亀川店</h3>
+                            <p class="gourmet-menu-name">おすすめ：とんこつラーメン、チャーシューメン、餃子</p>
+                            <p>まろやかで優しい味わいの豚骨スープにコシのある中細麺が絡む、昭和レトロな雰囲気が漂う老舗ラーメン店。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市亀川浜田町1-10</span>
+                                    <span>🚶 アクセス：JR「亀川駅」東口から徒歩約3分</span>
+                                    <span>⏰ 営業時間：11:00〜21:00</span>
+                                    <span>💳 支払方法：現金のみ</span>
+                                    <span>🚗 設備：テイクアウト対応</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://www.instagram.com/jumangoku_kamegawa/" target="_blank" class="url-btn">公式Instagramをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=十五万石ラーメン+亀川店" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 店舗8 -->
+                    <div class="gourmet-item" data-id="furari" data-category="ramen" data-price="low" data-hours="lunch,dinner" data-payment="cash" data-features="parking">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">鉄輪エリア・行列のできる人気ラーメン店</span>
+                            <h3>らーめん ふらり</h3>
+                            <p class="gourmet-menu-name">おすすめ：中華そば、つけ麺、とんこつラーメン</p>
+                            <p>スッキリとした醤油ベースのスープや絶品の麺が評判で、いつも多くのファンや観光客で賑わう大人気店。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市（鉄輪周辺）</span>
+                                    <span>🚗 アクセス：亀川駅から車で約7分</span>
+                                    <span>⏰ 営業時間：要確認（人気のため早めの訪問がおすすめ）</span>
+                                    <span>💳 支払方法：現金（券売機）</span>
+                                    <span>🚗 設備：駐車場あり</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://www.instagram.com/furari.beppu/" target="_blank" class="url-btn">公式Instagramをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=らーめん+ふらり+別府市" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 店舗9 -->
+                    <div class="gourmet-item" data-id="icchan" data-category="ramen,japanese" data-price="low" data-hours="lunch,dinner" data-payment="cash,paypay" data-features="parking,takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">元力士・琴別府が営む人気店</span>
+                            <h3>ラーメンいっちゃん 琴別府店</h3>
+                            <p class="gourmet-menu-name">おすすめ：肥後ラーメン（黒マー油）、別府冷麺、餃子</p>
+                            <p>元お相撲さん「琴別府」のお店。焦がしニンニクが効いた熊本ラーメンや、透き通ったアッサリ出汁の別府冷麺が絶品。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市（亀川近郊エリア）</span>
+                                    <span>🚗 アクセス：亀川駅から車で約5分</span>
+                                    <span>⏰ 営業時間：店舗へお問い合わせください</span>
+                                    <span>💳 支払方法：現金・PayPay等</span>
+                                    <span>🚗 設備：駐車場あり・テイクアウト可</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://ramen-icchan.com/" target="_blank" class="url-btn">公式サイトをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=ラーメンいっちゃん+琴別府店" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 店舗10 -->
+                    <div class="gourmet-item" data-id="hidesan" data-category="japanese,yakiniku" data-price="mid" data-hours="dinner" data-payment="cash,paypay" data-features="private_room,parking,takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">鉄輪の絶景と楽しむ炭火焼き・郷土料理</span>
+                            <h3>ひでさん</h3>
+                            <p class="gourmet-menu-name">おすすめ：炭火焼き（もも・マクミ等）、ひでさんなべ、とり天</p>
+                            <p>鉄輪温泉や別府市街の夜景を眼下に、新鮮な鶏の炭火焼きやアツアツの鍋、とり天を堪能できる高評価の人気店。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市鉄輪周辺</span>
+                                    <span>🚗 アクセス：亀川駅から車で約6分</span>
+                                    <span>⏰ 営業時間：17:30〜（予約推奨）</span>
+                                    <span>💳 支払方法：現金・PayPay等</span>
+                                    <span>🚗 設備：個室風席あり・駐車場あり・テイクアウト可</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://www.instagram.com/hidesan_beppu/" target="_blank" class="url-btn">公式Instagramをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=ひでさん+別府" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 店舗11 -->
+                    <div class="gourmet-item" data-id="dokebi" data-category="yakiniku" data-price="mid" data-hours="lunch,dinner" data-payment="cash,paypay,card" data-features="parking,takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">本場仕込みの味・大人気韓国料理</span>
+                            <h3>別府美味 どけび</h3>
+                            <p class="gourmet-menu-name">おすすめ：まるみ豚使用サムギョプサル食べ放題、自家製キムチ</p>
+                            <p>宮崎のブランド豚「まるみ豚」を使ったサムギョプサルや本格的な韓国料理がリーズナブルに楽しめる人気店。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市（鉄輪バスセンター付近）</span>
+                                    <span>🚗 アクセス：亀川駅から車で約7分</span>
+                                    <span>⏰ 営業時間：ランチ・ディナー営業あり</span>
+                                    <span>💳 支払方法：各種決済対応</span>
+                                    <span>🚗 設備：駐車場あり・テイクアウト可</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://www.instagram.com/dokebi.beppu/" target="_blank" class="url-btn">公式Instagramをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=別府美味どけび" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 店舗12 -->
+                    <div class="gourmet-item" data-id="jigokumushi" data-category="japanese,fastfood" data-price="low" data-hours="lunch" data-payment="cash,paypay,card" data-features="private_room,parking,takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">鉄輪温泉名物・温泉噴気で蒸す体験型スポット</span>
+                            <h3>地獄蒸し工房鉄輪</h3>
+                            <p class="gourmet-menu-name">おすすめ：地獄蒸し野菜セット、海鮮食材、ちまき</p>
+                            <p>温泉の高温の噴気を利用して、自分たちで食材を蒸して食べる別府ならではの体験型名所。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市風呂本</span>
+                                    <span>🚗 アクセス：亀川駅から車で約7分</span>
+                                    <span>⏰ 営業時間：9:00〜19:00（要確認）</span>
+                                    <span>💳 支払方法：各種対応</span>
+                                    <span>🚗 設備：個室風スペースあり・駐車場あり・テイクアウト対応</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="http://jigokumushi.com/" target="_blank" class="url-btn">公式サイトをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=地獄蒸し工房鉄輪" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 追加店舗13：curry & coffee KID -->
+                    <div class="gourmet-item" data-id="kid-curry" data-category="cafe,fastfood" data-price="low" data-hours="lunch" data-payment="cash,paypay" data-features="takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">亀川駅徒歩圏内・おしゃれなスパイス＆カフェ</span>
+                            <h3>curry & coffee KID（キッド）</h3>
+                            <p class="gourmet-menu-name">おすすめ：ほろほろ牛すじカレー、バスクチーズケーキ、こだわりコーヒー</p>
+                            <p>亀川駅からも近い落ち着いた雰囲気のカフェ。じっくり煮込んだコク深い牛すじカレーや、岩塩で楽しむ手作りスイーツが大好評です。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市亀川（別府亀川郵便局近く）</span>
+                                    <span>🚶 アクセス：JR「亀川駅」から徒歩約6分</span>
+                                    <span>⏰ 営業時間：11:00〜17:00（要確認）</span>
+                                    <span>💳 支払方法：現金・PayPay</span>
+                                    <span>🚗 設備：テイクアウト対応</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://maps.google.com/?q=curry+%26+coffee+KID+別府市" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 追加店舗14：甘味茶屋 -->
+                    <div class="gourmet-item" data-id="amami-chaya" data-category="japanese,cafe" data-price="mid" data-hours="lunch,dinner" data-payment="cash,paypay,card" data-features="private_room,parking,takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">実相寺近く・風情あふれる古民家甘味処</span>
+                            <h3>甘味茶屋（あまみぢゃや）</h3>
+                            <p class="gourmet-menu-name">おすすめ：だんご汁、やせうま、つきたてのお餅、季節の和スイーツ</p>
+                            <p>四季を感じる庭園と温もりある木造店舗で、大分の郷土料理やできたての和菓子を心ゆくまで味わえる超人気店。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市実相寺1-4</span>
+                                    <span>🚗 アクセス：JR「亀川駅」から車で約8分</span>
+                                    <span>⏰ 営業時間：10:00〜21:00（定休日：無休/臨時休業あり）</span>
+                                    <span>💳 支払方法：各種決済対応</span>
+                                    <span>🚗 設備：お座敷・駐車場あり・テイクアウト可</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://amami.jp/" target="_blank" class="url-btn">公式サイトをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=甘味茶屋+大分県別府市実相寺1-4" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 追加店舗15：日本料理 いやさか -->
+                    <div class="gourmet-item" data-id="iyasaka" data-category="japanese" data-price="high" data-hours="lunch,dinner" data-payment="cash,card" data-features="private_room,parking">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">亀川・鉄輪エリア・風情ある旬の和食会席</span>
+                            <h3>日本料理 いやさか</h3>
+                            <p class="gourmet-menu-name">おすすめ：旬の会席料理、地獄蒸し和膳、豊後牛コース</p>
+                            <p>静かで洗練された空間で、大分の旬の魚介やお肉、地獄蒸しを取り入れた風情豊かな日本料理が味わえます。祝い事や特別なお食事に最適。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市（亀川・鉄輪周辺）</span>
+                                    <span>🚗 アクセス：JR「亀川駅」から車で約7分</span>
+                                    <span>⏰ 営業時間：11:30〜14:00 / 17:30〜21:30（要予約）</span>
+                                    <span>💳 支払方法：現金・各種クレジットカード</span>
+                                    <span>🚗 設備：完全個室あり・駐車場完備</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://maps.google.com/?q=日本料理+いやさか+別府市" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 追加店舗16：回転寿し 水天 石垣店 -->
+                    <div class="gourmet-item" data-id="suiten" data-category="japanese" data-price="high" data-hours="lunch,dinner" data-payment="cash,paypay,card" data-features="parking,takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">石垣東・和モダン空間で味わう高級回転寿司</span>
+                            <h3>回転寿し 水天（すいてん） 石垣店</h3>
+                            <p class="gourmet-menu-name">おすすめ：地魚三昧、生まぐろ、自家製厚焼き玉子</p>
+                            <p>落ち着いた和の空間で厳選された九州の新鮮なネタを楽しめる大人気グルメ寿司。一般的な回転寿司を超えた上質な味覚覚を提供します。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市石垣東10-1-30</span>
+                                    <span>🚗 アクセス：JR「亀川駅」から車で約7分</span>
+                                    <span>⏰ 営業時間：11:00〜14:30 / 17:00〜21:30</span>
+                                    <span>💳 支払方法：各種決済対応</span>
+                                    <span>🚗 設備：駐車場あり・テイクアウト対応</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="http://www.suiten.jp/" target="_blank" class="url-btn">公式サイトをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=回転寿し水天+石垣店" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 追加店舗17：焼肉 元相 本店 -->
+                    <div class="gourmet-item" data-id="ganso" data-category="yakiniku" data-price="high" data-hours="lunch,dinner" data-payment="cash,paypay,card" data-features="private_room,parking,takeout">
+                        <div class="gourmet-text">
+                            <button class="fav-btn" title="お気に入り">❤️</button>
+                            <span class="restaurant-tag">別府元町近く・老舗厳選和牛焼肉</span>
+                            <h3>焼肉 元相（がんそう） 本店</h3>
+                            <p class="gourmet-menu-name">おすすめ：元相上カルビ、黒毛和牛盛合せ、お得な焼肉ランチ</p>
+                            <p>別府で焼肉といえば誰もが挙げる有名店。厳選された極上の和牛と伝統のタレが相性抜群で、個室でゆったり楽しめます。</p>
+                            <button class="details-toggle-btn"><span>詳細を見る</span> <span class="toggle-icon">▼</span></button>
+                            <div class="gourmet-details">
+                                <div class="gourmet-meta">
+                                    <span>📍 住所：大分県別府市元町5-25</span>
+                                    <span>🚗 アクセス：JR「別府駅」から車で約4分（亀川駅から車で約15分）</span>
+                                    <span>⏰ 営業時間：11:30〜22:00</span>
+                                    <span>💳 支払方法：各種決済対応</span>
+                                    <span>🚗 設備：個室完備・駐車場あり・テイクアウト可</span>
+                                </div>
+                                <div class="btn-group">
+                                    <a href="https://ganso.co.jp/" target="_blank" class="url-btn">公式サイトをチェックする 🔗</a>
+                                    <a href="https://maps.google.com/?q=焼肉元相+本店+別府" target="_blank" class="url-btn map-btn">地図で場所を確認する (Googleマップ) 🗺️</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <footer id="footer">
+            <div class="footer-links">
+                <a href="#"><span data-i18n="privacy">プライバシーポリシー</span></a>
+                <a href="#"><span data-i18n="contact">お問い合わせ</span></a>
+            </div>
+            <p>&copy; 2026 Beppu Kamegawa Gourmet Nav. All Rights Reserved.</p>
+        </footer>
+    </div>
+
+    <script>
+        // Supabase初期設定
+        const SUPABASE_URL = 'https://YOUR_SUPABASE_PROJECT_ID.supabase.co';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        let supabase = null;
+        if (window.supabase && SUPABASE_URL !== 'https://YOUR_SUPABASE_PROJECT_ID.supabase.co') {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        const I18N_DATA = {
+            ja: {
+                nav_title: "別府・亀川グルメ・ナビ", sidebar_logo: "別府・亀川<br>グルメ・ナビ",
+                nav_home: "ホーム", nav_gourmet: "名店グルメ", nav_fav: "お気に入り一覧",
+                show_qr: "QRコードを表示", qr_title: "QRコードでシェア", qr_desc: "スマホのカメラで読み取ってアクセス！", close: "閉じる",
+                hero_title: "別府・亀川の「美味しい」に出会う旅。", hero_desc: "温泉水を使った地獄そば、絶景パノラマカフェ、血の池地獄の郷土料理から、器も楽しめる和モダンな空間まで。半径5キロ圏内の至高のローカル店をご紹介。", hero_btn: "条件を選んで検索",
+                search_section_title: "絞り込み検索", section_title: "名店グルメ", 
+                lbl_category: "カテゴリー", lbl_price: "価格帯", lbl_time: "営業時間", lbl_payment: "支払方法", lbl_feature: "こだわり条件", btn_reset: "条件リセット",
+                msg_empty: "該当するお店が見つかりませんでした。<br>検索条件やお気に入り一覧を確認してください。", view_details: "詳細を見る",
+                btn_insta: "公式Instagramをチェックする 🔗", btn_site: "公式サイトをチェックする 🔗", btn_map: "地図で場所を確認する (Googleマップ) 🗺️",
+                privacy: "プライバシーポリシー", contact: "お問い合わせ"
+            },
+            en: {
+                nav_title: "Beppu Kamegawa Gourmet Guide", sidebar_logo: "Beppu Kamegawa<br>Gourmet Guide",
+                nav_home: "Home", nav_gourmet: "Gourmet Spots", nav_fav: "Favorites",
+                show_qr: "Show QR Code", qr_title: "Share via QR Code", qr_desc: "Scan with your camera to access!", close: "Close",
+                hero_title: "A Journey to Discover Delicious Food in Beppu & Kamegawa.", hero_desc: "Discover exquisite local spots within a 5km radius, including hot spring soba and scenic cafes.", hero_btn: "Filter Spots",
+                search_section_title: "Filter Search", section_title: "Gourmet Spots", 
+                lbl_category: "Category", lbl_price: "Price Range", lbl_time: "Hours", lbl_payment: "Payment", lbl_feature: "Features", btn_reset: "Reset Filters",
+                msg_empty: "No matching spots found.<br>Please check your search keywords or favorites list.", view_details: "View Details",
+                btn_insta: "Check Official Instagram 🔗", btn_site: "Check Official Website 🔗", btn_map: "View Map (Google Maps) 🗺️",
+                privacy: "Privacy Policy", contact: "Contact"
+            }
+        };
+
+        function changeLanguage(lang) {
+            document.documentElement.setAttribute('lang', lang);
+            localStorage.setItem('selectedLang', lang);
+
+            const badges = { 'ja': '🇯🇵 日本語', 'en': '🇺🇸 English' };
+            const badge = document.getElementById('currentLangBadge');
+            if (badge) badge.textContent = badges[lang] || '🇯🇵 日本語';
+
+            const selector = document.getElementById('langSelect');
+            if (selector) selector.value = lang;
+
+            const data = I18N_DATA[lang] || I18N_DATA.ja;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (data[key]) el.innerHTML = data[key];
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedLang = localStorage.getItem('selectedLang') || 'ja';
+            changeLanguage(savedLang);
+
+            const sidebar = document.getElementById('sidebar');
+            const toggleBtn = document.getElementById('sidebarToggleBtn');
+            const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+
+            if (isCollapsed) {
+                sidebar.classList.add('collapsed');
+                document.body.classList.add('sidebar-is-collapsed');
+                if (toggleBtn) toggleBtn.textContent = '♨';
+            }
+
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', () => {
+                    sidebar.classList.toggle('collapsed');
+                    document.body.classList.toggle('sidebar-is-collapsed');
+                    const collapsed = sidebar.classList.contains('collapsed');
+                    toggleBtn.textContent = collapsed ? '♨' : '◀';
+                    localStorage.setItem('sidebarCollapsed', collapsed);
+                });
+            }
+
+            document.querySelectorAll('.details-toggle-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    btn.classList.toggle('expanded');
+                    btn.nextElementSibling.classList.toggle('expanded');
+                });
+            });
+
+            let favorites = JSON.parse(localStorage.getItem('beppuFavorites')) || [];
+            let isFavFilterActive = false;
+
+            const favItems = document.querySelectorAll('.gourmet-item');
+            const favCountBadge = document.getElementById('favCountBadge');
+            const favFilterBtn = document.getElementById('favFilterBtn');
+            const emptyMsg = document.getElementById('emptyFavMessage');
+            const searchInput = document.getElementById('searchInput');
+            const searchClearBtn = document.getElementById('searchClearBtn');
+            const catFilter = document.getElementById('categoryFilter');
+            const priceFilter = document.getElementById('priceFilter');
+            const timeFilter = document.getElementById('timeFilter');
+            const paymentFilter = document.getElementById('paymentFilter');
+            const featureFilter = document.getElementById('featureFilter');
+
+            const navLinks = document.querySelectorAll('.sidebar-nav .nav-link');
+
+            function updateUI() {
+                if (favCountBadge) favCountBadge.textContent = favorites.length;
+                if (favFilterBtn) favFilterBtn.classList.toggle('active-filter', isFavFilterActive);
+
+                const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+                const cat = catFilter ? catFilter.value : 'all';
+                const price = priceFilter ? priceFilter.value : 'all';
+                const time = timeFilter ? timeFilter.value : 'all';
+                const payment = paymentFilter ? paymentFilter.value : 'all';
+                const feature = featureFilter ? featureFilter.value : 'all';
+
+                if (searchClearBtn) searchClearBtn.style.display = query ? 'block' : 'none';
+
+                let visible = 0;
+                favItems.forEach(item => {
+                    const id = item.getAttribute('data-id');
+                    const itemCats = (item.getAttribute('data-category') || '').split(',');
+                    const itemPrice = item.getAttribute('data-price');
+                    const itemHours = (item.getAttribute('data-hours') || '').split(',');
+                    const itemPayment = (item.getAttribute('data-payment') || '').split(',');
+                    const itemFeatures = (item.getAttribute('data-features') || '').split(',');
+                    const btn = item.querySelector('.fav-btn');
+
+                    const isFav = favorites.includes(id);
+                    btn.classList.toggle('favorited', isFav);
+                    btn.textContent = isFav ? '❤️' : '🤍';
+
+                    const passFav = !isFavFilterActive || isFav;
+                    const passQuery = !query || item.textContent.toLowerCase().includes(query);
+                    const passCat = cat === 'all' || itemCats.includes(cat);
+                    const passPrice = price === 'all' || itemPrice === price;
+                    const passTime = time === 'all' || itemHours.includes(time);
+                    const passPayment = payment === 'all' || itemPayment.includes(payment);
+                    const passFeature = feature === 'all' || itemFeatures.includes(feature);
+
+                    if (passFav && passQuery && passCat && passPrice && passTime && passPayment && passFeature) {
+                        item.classList.remove('hidden-by-filter');
+                        visible++;
+                    } else {
+                        item.classList.add('hidden-by-filter');
+                    }
+                });
+
+                if (emptyMsg) emptyMsg.style.display = visible === 0 ? 'block' : 'none';
+            }
+
+            navLinks.forEach(link => {
+                link.addEventListener('click', () => {
+                    if (isFavFilterActive) {
+                        isFavFilterActive = false;
+                        updateUI();
+                    }
+                    navLinks.forEach(l => l.classList.remove('active-nav'));
+                    if (favFilterBtn) favFilterBtn.classList.remove('active-filter');
+                    link.classList.add('active-nav');
+
+                    if (window.innerWidth <= 1024) {
+                        sidebar.classList.remove('active');
+                        document.getElementById('overlay').classList.remove('active');
+                    }
+                });
+            });
+
+            if (favFilterBtn) {
+                favFilterBtn.addEventListener('click', () => {
+                    isFavFilterActive = !isFavFilterActive;
+                    updateUI();
+                    navLinks.forEach(l => l.classList.remove('active-nav'));
+                    if (favFilterBtn) {
+                        favFilterBtn.classList.toggle('active-filter', isFavFilterActive);
+                    }
+                    document.getElementById('gourmet').scrollIntoView({ behavior: 'smooth' });
+
+                    if (window.innerWidth <= 1024) {
+                        sidebar.classList.remove('active');
+                        document.getElementById('overlay').classList.remove('active');
+                    }
+                });
+            }
+
+            if (catFilter) catFilter.addEventListener('change', updateUI);
+            if (priceFilter) priceFilter.addEventListener('change', updateUI);
+            if (timeFilter) timeFilter.addEventListener('change', updateUI);
+            if (paymentFilter) paymentFilter.addEventListener('change', updateUI);
+            if (featureFilter) featureFilter.addEventListener('change', updateUI);
+            if (searchInput) searchInput.addEventListener('input', updateUI);
+
+            if (searchClearBtn) {
+                searchClearBtn.addEventListener('click', () => {
+                    searchInput.value = '';
+                    updateUI();
+                });
+            }
+
+            document.getElementById('resetFiltersBtn')?.addEventListener('click', () => {
+                if (catFilter) catFilter.value = 'all';
+                if (priceFilter) priceFilter.value = 'all';
+                if (timeFilter) timeFilter.value = 'all';
+                if (paymentFilter) paymentFilter.value = 'all';
+                if (featureFilter) featureFilter.value = 'all';
+                if (searchInput) searchInput.value = '';
+                isFavFilterActive = false;
+                updateUI();
+            });
+
+            document.querySelectorAll('.fav-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.target.closest('.gourmet-item').getAttribute('data-id');
+                    const idx = favorites.indexOf(id);
+                    if (idx > -1) favorites.splice(idx, 1);
+                    else favorites.push(id);
+                    localStorage.setItem('beppuFavorites', JSON.stringify(favorites));
+                    updateUI();
+                });
+            });
+
+            updateUI();
+
+            const overlay = document.getElementById('overlay');
+            const qrModal = document.getElementById('qrModal');
+            let qrInit = false;
+
+            document.getElementById('menuToggle')?.addEventListener('click', () => {
+                sidebar.classList.toggle('active');
+                overlay.classList.toggle('active');
+            });
+
+            document.getElementById('openQrBtn')?.addEventListener('click', () => {
+                qrModal.classList.add('active');
+                overlay.classList.add('active');
+                sidebar.classList.remove('active');
+
+                if (!qrInit) {
+                    new QRCode(document.getElementById("qrcode"), {
+                        text: window.location.href, width: 200, height: 200,
+                        colorDark : "#2c3e50", colorLight : "#ffffff"
+                    });
+                    qrInit = true;
+                }
+            });
+
+            document.getElementById('closeQrBtn')?.addEventListener('click', () => {
+                qrModal.classList.remove('active');
+                overlay.classList.remove('active');
+            });
+
+            // 認証の実装
+            const authModal = document.getElementById('authModal');
+            const openAuthBtn = document.getElementById('openAuthBtn');
+            const closeAuthBtn = document.getElementById('closeAuthBtn');
+            const authBtnText = document.getElementById('authBtnText');
+            const loginBtn = document.getElementById('loginBtn');
+            const signupBtn = document.getElementById('signupBtn');
+            const authEmail = document.getElementById('authEmail');
+            const authPassword = document.getElementById('authPassword');
+            const authMessage = document.getElementById('authMessage');
+
+            function updateAuthUI(user) {
+                if (!authBtnText) return;
+                if (user && user.email) {
+                    authBtnText.textContent = `ログアウト (${user.email.split('@')[0]})`;
+                } else {
+                    authBtnText.textContent = "ログイン / 登録";
+                }
+            }
+
+            async function initAuth() {
+                if (!supabase) return;
+                const { data: { session } } = await supabase.auth.getSession();
+                updateAuthUI(session ? session.user : null);
+
+                supabase.auth.onAuthStateChange((_event, session) => {
+                    updateAuthUI(session ? session.user : null);
+                });
+            }
+
+            openAuthBtn?.addEventListener('click', async () => {
+                if (!supabase) {
+                    alert('Supabaseの初期化設定（URLおよびAnon Key）が必要です。スクリプト内の設定をご確認ください。');
+                    return;
+                }
+
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    if (confirm("ログアウトしますか？")) {
+                        await supabase.auth.signOut();
+                        updateAuthUI(null);
+                        alert("ログアウトしました。");
+                    }
+                } else {
+                    authModal?.classList.add('active');
+                    overlay?.classList.add('active');
+                    sidebar.classList.remove('active');
+                }
+            });
+
+            function closeAuthModal() {
+                authModal?.classList.remove('active');
+                overlay?.classList.remove('active');
+                if (authMessage) authMessage.textContent = '';
+            }
+
+            closeAuthBtn?.addEventListener('click', closeAuthModal);
+
+            loginBtn?.addEventListener('click', async () => {
+                if (!supabase) return;
+                const email = authEmail?.value.trim();
+                const password = authPassword?.value.trim();
+                if (authMessage) authMessage.textContent = '';
+
+                if (!email || !password) {
+                    if (authMessage) authMessage.textContent = 'メールアドレスとパスワードを入力してください。';
+                    return;
+                }
+
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+                if (error) {
+                    if (authMessage) authMessage.textContent = `ログインエラー: ${error.message}`;
+                } else {
+                    closeAuthModal();
+                    updateAuthUI(data.user);
+                }
+            });
+
+            signupBtn?.addEventListener('click', async () => {
+                if (!supabase) return;
+                const email = authEmail?.value.trim();
+                const password = authPassword?.value.trim();
+                if (authMessage) authMessage.textContent = '';
+
+                if (!email || !password) {
+                    if (authMessage) authMessage.textContent = 'メールアドレスとパスワードを入力してください。';
+                    return;
+                }
+
+                const { data, error } = await supabase.auth.signUp({ email, password });
+
+                if (error) {
+                    if (authMessage) authMessage.textContent = `登録エラー: ${error.message}`;
+                } else {
+                    if (data.session) {
+                        alert('登録が完了しました！');
+                        closeAuthModal();
+                        updateAuthUI(data.user);
+                    } else {
+                        alert('確認メールを送信しました。メール内のリンクをクリックして登録を完了してください。');
+                        closeAuthModal();
+                    }
+                }
+            });
+
+            overlay?.addEventListener('click', () => {
+                sidebar.classList.remove('active');
+                qrModal.classList.remove('active');
+                closeAuthModal();
+            });
+
+            initAuth();
+        });
+    </script>
+</body>
+</html>
